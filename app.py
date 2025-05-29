@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # Configura tu API key de ElevenLabs
-ELEVENLABS_API_KEY = "sk_2a2df6dcc0e432ed8112887b5062a90580b5534ae1ffddb0" # Reemplaza con tu API Key real
+ELEVENLABS_API_KEY = "sk_7f9e9df26cc78f80e812a56ccb292bb8d6a7662d4385448a" # Reemplaza con tu API Key real
 #VOICE_ID = "1Z7qQDyqapTm8qBfJx6e" #INGLES
 VOICE_ID = "1Z7qQDyqapTm8qBfJx6e"  # español
 
