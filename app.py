@@ -2,9 +2,9 @@ import streamlit as st
 import requests
 
 # Configura tu API key de ElevenLabs
-ELEVENLABS_API_KEY = "sk_628f20d8f86797b404799056f0443d2a4920cadc7cbbbfd1" # Reemplaza con tu API Key real
+ELEVENLABS_API_KEY = "sk_2a2df6dcc0e432ed8112887b5062a90580b5534ae1ffddb0" # Reemplaza con tu API Key real
 #VOICE_ID = "1Z7qQDyqapTm8qBfJx6e" #INGLES
-VOICE_ID = "tTdCI0IDTgFa2iLQiWu4"  # español
+VOICE_ID = "1Z7qQDyqapTm8qBfJx6e"  # español
 
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
