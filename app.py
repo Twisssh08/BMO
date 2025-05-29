@@ -1,45 +1,93 @@
+import os
 import streamlit as st
-import requests
+from PIL import Image
+from PyPDF2 import PdfReader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.llms import OpenAI
+from langchain.chains.question_answering import load_qa_chain
+import platform
 
-# Configura tu API key de ElevenLabs
-ELEVENLABS_API_KEY = "sk_bb2d36e4715f35a315af7ec2889a922da7c8246fb3e90d8a" # Reemplaza con tu API Key real
-#VOICE_ID = "1Z7qQDyqapTm8qBfJx6e" #INGLES
-VOICE_ID = "1Z7qQDyqapTm8qBfJx6e"  # español
+# App title and presentation
+st.title('Generación Aumentada por Recuperación (ESCLAVO ROBOT) 💬')
+st.write("Versión de Python:", platform.python_version())
 
-def text_to_speech(text):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+# Load and display image
+try:
+    image = Image.open('Chat_pdf.png')
+    st.image(image, width=350)
+except Exception as e:
+    st.warning(f"No se pudo cargar la imagen: {e}")
 
-    headers = {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json"
-    }
+# Sidebar information
+with st.sidebar:
+    st.subheader("Este Robot te ayudará a estudiar tu PDF, ¡hazle todas las preguntas que quieras!")
+    st.write("sube el pdf en la parte derecha de la página para poner a trabajar a tu nuevo esclavo!")
 
-    payload = {
-        "text": text,
-        "model_id": "eleven_monolingual_v1",
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75
-        }
-    }
+# Get API key from user
+ke = st.text_input('Ingresa tu Clave de OpenAI', type="password")
+if ke:
+    os.environ['OPENAI_API_KEY'] = ke
+else:
+    st.warning("Por favor ingresa tu clave de API de OpenAI para continuar")
 
-    response = requests.post(url, json=payload, headers=headers)
+# PDF uploader
+pdf = st.file_uploader("Carga el archivo PDF", type="pdf")
 
-    if response.status_code == 200:
-        return response.content  # Devuelve el audio en bytes
-    else:
-        st.error(f"Error: {response.status_code} - {response.text}")
-        return None
-
-# Interfaz en Streamlit
-st.title("Texto a Voz con ElevenLabs")
-
-user_text = st.text_area("Escribe el texto que quieres convertir a voz:")
-
-if st.button("Convertir a voz"):
-    if user_text.strip():
-        audio_data = text_to_speech(user_text)
-        if audio_data:
-            st.audio(audio_data, format="audio/mp3")
-    else:
-        st.warning("Por favor, escribe algo de texto.")
+# Process the PDF if uploaded
+if pdf is not None and ke:
+    try:
+        # Extract text from PDF
+        pdf_reader = PdfReader(pdf)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        
+        st.info(f"Texto extraído: {len(text)} caracteres")
+        
+        # Split text into chunks
+        text_splitter = CharacterTextSplitter(
+            separator="\n",
+            chunk_size=500,
+            chunk_overlap=20,
+            length_function=len
+        )
+        chunks = text_splitter.split_text(text)
+        st.success(f"Documento dividido en {len(chunks)} fragmentos")
+        
+        # Create embeddings and knowledge base
+        embeddings = OpenAIEmbeddings()
+        knowledge_base = FAISS.from_texts(chunks, embeddings)
+        
+        # User question interface
+        st.subheader("Escribe qué quieres saber sobre el documento")
+        user_question = st.text_area(" ", placeholder="Escribe tu pregunta aquí...")
+        
+        # Process question when submitted
+        if user_question:
+            docs = knowledge_base.similarity_search(user_question)
+            
+            # Use a current model instead of deprecated text-davinci-003
+            # Options: "gpt-3.5-turbo-instruct" or "gpt-4-turbo-preview" depending on your API access
+            llm = OpenAI(temperature=0, model_name="gpt-4o")
+            
+            # Load QA chain
+            chain = load_qa_chain(llm, chain_type="stuff")
+            
+            # Run the chain
+            response = chain.run(input_documents=docs, question=user_question)
+            
+            # Display the response
+            st.markdown("### Respuesta:")
+            st.markdown(response)
+                
+    except Exception as e:
+        st.error(f"Error al procesar el PDF: {str(e)}")
+        # Add detailed error for debugging
+        import traceback
+        st.error(traceback.format_exc())
+elif pdf is not None and not ke:
+    st.warning("Por favor ingresa tu clave de API de OpenAI para continuar")
+else:
+    st.info("Por favor carga un archivo PDF para comenzar")
