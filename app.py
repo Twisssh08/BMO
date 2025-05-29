@@ -5,7 +5,6 @@ import base64
 import platform
 import streamlit as st
 from PIL import Image
-from gtts import gTTS
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
@@ -26,11 +25,6 @@ st.title('ESCLAVO ROBOT 📚💔')
 st.write("Versión de Python:", platform.python_version())
 
 # Imagen decorativa
-try:
-    image = Image.open('Chat_pdf.png')
-    st.image(image, width=350)
-except Exception as e:
-    st.warning(f"No se pudo cargar la imagen: {e}")
 
 # Sidebar
 with st.sidebar:
