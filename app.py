@@ -1,45 +1,108 @@
+import os
+import time
+import glob
+import base64
+import platform
 import streamlit as st
-import requests
+from PIL import Image
+from gtts import gTTS
+from PyPDF2 import PdfReader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.llms import OpenAI
+from langchain.chains.question_answering import load_qa_chain
 
-# Configura tu API key de ElevenLabs
-ELEVENLABS_API_KEY = "sk_bb2d36e4715f35a315af7ec2889a922da7c8246fb3e90d8a" # Reemplaza con tu API Key real
-#VOICE_ID = "1Z7qQDyqapTm8qBfJx6e" #INGLES
-VOICE_ID = "1Z7qQDyqapTm8qBfJx6e"  # español
+# Configuración visual
+st.set_page_config(page_title="ESCLAVO ROBOT 📚💔", page_icon="🤖", layout="centered")
+st.markdown(
+    '<style>body {background-color: #1e1e2f; color: #fce4ec; font-family: "Courier New", monospace;} '
+    'h1, h2, h3 {color: #ff80ab;} .stButton>button {background-color: #ffb6b9; color: #ffffff; border-radius: 10px; padding: 8px 20px;} '
+    '.stButton>button:hover {background-color: #f48fb1;}</style>',
+    unsafe_allow_html=True
+)
 
-def text_to_speech(text):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+st.title('ESCLAVO ROBOT 📚💔')
+st.write("Versión de Python:", platform.python_version())
 
-    headers = {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json"
-    }
+# Imagen decorativa
+try:
+    image = Image.open('Chat_pdf.png')
+    st.image(image, width=350)
+except Exception as e:
+    st.warning(f"No se pudo cargar la imagen: {e}")
 
-    payload = {
-        "text": text,
-        "model_id": "eleven_monolingual_v1",
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75
-        }
-    }
+# Sidebar
+with st.sidebar:
+    st.subheader("Sube un PDF y pregúntale lo que quieras. Luego escucha la respuesta.")
 
-    response = requests.post(url, json=payload, headers=headers)
+# Crear carpeta temporal si no existe
+if not os.path.exists("temp"):
+    os.makedirs("temp")
 
-    if response.status_code == 200:
-        return response.content  # Devuelve el audio en bytes
-    else:
-        st.error(f"Error: {response.status_code} - {response.text}")
-        return None
+# Clave API
+ke = st.text_input('Ingresa tu Clave de OpenAI', type="password")
+if ke:
+    os.environ['OPENAI_API_KEY'] = ke
+else:
+    st.warning("Por favor ingresa tu clave de API de OpenAI para continuar")
 
-# Interfaz en Streamlit
-st.title("Texto a Voz con ElevenLabs")
+# Subir PDF
+pdf = st.file_uploader("Carga el archivo PDF", type="pdf")
 
-user_text = st.text_area("Escribe el texto que quieres convertir a voz:")
+# Procesamiento si se carga PDF y clave API
+if pdf and ke:
+    try:
+        pdf_reader = PdfReader(pdf)
+        text = "".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
+        
+        # Dividir texto
+        splitter = CharacterTextSplitter(separator="\n", chunk_size=500, chunk_overlap=20)
+        chunks = splitter.split_text(text)
+        embeddings = OpenAIEmbeddings()
+        knowledge_base = FAISS.from_texts(chunks, embeddings)
 
-if st.button("Convertir a voz"):
-    if user_text.strip():
-        audio_data = text_to_speech(user_text)
-        if audio_data:
-            st.audio(audio_data, format="audio/mp3")
-    else:
-        st.warning("Por favor, escribe algo de texto.")
+        st.subheader("Escribe tu pregunta sobre el PDF")
+        user_question = st.text_area(" ", placeholder="¿Qué quieres saber?")
+        
+        if user_question:
+            docs = knowledge_base.similarity_search(user_question)
+            llm = OpenAI(temperature=0, model_name="gpt-4o")
+            chain = load_qa_chain(llm, chain_type="stuff")
+            response = chain.run(input_documents=docs, question=user_question)
+            
+            st.markdown("### Respuesta:")
+            st.markdown(response)
+
+            # Convertir respuesta a audio
+            def text_to_speech(text, lang='es'):
+                tts = gTTS(text, lang=lang)
+                filename = "temp/response.mp3"
+                tts.save(filename)
+                return filename
+
+            audio_file = text_to_speech(response)
+            with open(audio_file, "rb") as f:
+                audio_bytes = f.read()
+                st.audio(audio_bytes, format="audio/mp3")
+
+            def get_binary_file_downloader_html(bin_file, file_label='Audio'):
+                with open(bin_file, 'rb') as f:
+                    data = f.read()
+                bin_str = base64.b64encode(data).decode()
+                href = f'<a href="data:application/octet-stream;base64,{bin_str}" download="{os.path.basename(bin_file)}">⬇️ Descargar {file_label}</a>'
+                return href
+
+            st.markdown(get_binary_file_downloader_html(audio_file), unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Error al procesar el PDF: {str(e)}")
+
+# Limpieza automática de archivos antiguos
+def remove_old_files(days=7):
+    now = time.time()
+    for f in glob.glob("temp/*.mp3"):
+        if os.stat(f).st_mtime < now - days * 86400:
+            os.remove(f)
+
+remove_old_files()
