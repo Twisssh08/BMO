@@ -1,16 +1,4 @@
-import os
-import time
-import glob
-import base64
-import platform
-import streamlit as st
-from PIL import Image
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.llms import OpenAI
-from langchain.chains.question_answering import load_qa_chain
+
 
 # Configuración visual
 st.set_page_config(page_title="ESCLAVO ROBOT 📚💔", page_icon="🤖", layout="centered")
